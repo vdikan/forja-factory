@@ -43,7 +43,7 @@
     collect (format nil "~a/~a" base (chem-kind-siesta-pseudo (cdr kind)))))
 
 
-(defun siesta-direct (plist &key system-label structure template
+(defun siesta-direct (plist &key system-label pseudos-list structure template
                               (pseudos-dir pseudos-dir)
                               (siesta-command (siesta-command))
                               (run-dir (run-dir)))
@@ -53,6 +53,7 @@
                     :structure structure
                     :template template
                     :pseudos-dir pseudos-dir
+                    :pseudos-list pseudos-list
                     :siesta-command siesta-command
                     :run-dir run-dir))
 
@@ -60,8 +61,8 @@
        (uiop:wait-process proc))          ; create run-dir
 
      (loop
-       :for ps-file :in (ps-file-paths (get-param :pseudos-dir)
-                                       (get-param :structure))
+       :for ps-file :in (or pseudos-list (ps-file-paths (get-param :pseudos-dir)
+                                                        (get-param :structure)))
        :do (aproc
                (format nil "cp ~a ~a/"
                        ps-file (get-param :run-dir))
