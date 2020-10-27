@@ -2,12 +2,15 @@
   :version "0.1.0"
   :author "Vladimir Dikan"
   :license "GPL"
-  :depends-on ("cl-arrows"
+  :depends-on ("lparallel"
+               "bt-semaphore"
+               "cl-arrows"
                "cl-forja"
                "common-utils")
   :components ((:module "src"
                 :components
-                ((:file "siesta"))))
+                ((:file "siesta")
+                 (:file "thermal"))))
   :description "Some factory functions for CL-Forja calculations."
   :in-order-to ((test-op (test-op "forja-factory/tests"))))
 
