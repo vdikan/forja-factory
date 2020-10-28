@@ -190,6 +190,49 @@ SolutionMethod       diagon
    siesta-extras-plist))
 
 
+(defparameter template-qe
+  "&energy_current
+    vel_input_units='CP',
+    delta_t=##:md-length-virtual-dt:##,
+    file_output='current_hz',
+    eta=0.100,
+    n_max=5,
+ /
+ &CONTROL
+    calculation='md',
+    restart_mode='from_scratch',
+    pseudo_dir='##:pseudos-dir:##',
+    outdir='./save',
+    prefix='a_block',
+    tprnfor=.true.,
+ /
+ &SYSTEM
+    ibrav=##:ibrav:##,
+    celldm(1)=##:celldm1:##,
+    nat=##:number-of-atoms:##,
+    ntyp=##:number-of-kinds:##,
+    ecutrho=##:densitycutoff:##,
+    ecutwfc=##:wfscutoff:##,
+ /
+ &ELECTRONS
+    conv_thr = 1.D-8,
+    mixing_beta = 0.7,
+ /
+ &IONS
+    ion_velocities = 'from_input',
+ /
+ ATOMIC_SPECIES
+##:chem-kinds:##
+ ATOMIC_POSITIONS (bohr)
+##:atom-list:##
+
+ ATOMIC_VELOCITIES
+##:atom-vel-list:##
+
+ K_POINTS (Gamma)
+  ")
+
+
 (defvar qe-prefix nil)
 
 (defvar qe-bin "~/bin/all_currents.x")
@@ -216,11 +259,14 @@ SolutionMethod       diagon
          :qe-command (qe-command)
          :densitycutoff densitycutoff
          :wfscutoff  (wfscutoff)
-         :structure init-structure
+         :structure  (make-cstruct :atoms (derive-atomlist init-structure
+                                                           (getf packed-xvs :x1))
+                                   :kinds (cstruct-kinds init-structure)
+                                   :lattice (cstruct-lattice init-structure))
          :md-length-dt   md-length-dt
          :md-length-virtual-dt md-length-virtual-dt
-         :md-init-temperature  md-init-temperature)
-                                        ;:template-fdf template-fdf)
+         :md-init-temperature  md-init-temperature
+         :template-qe template-qe )
    qe-extras-plist))
 
 
@@ -289,6 +335,36 @@ SolutionMethod       diagon
                        (reset-xvs-buffers)
                        (format t "QE task submitted for MD step ~d~%" step)))
           step))))
+
+
+(defun derive-atomlist (structure gen-coords)
+  "Derives new atomlist for species in STRUCTURE mapped onto GEN-COORDS."
+  (let ((offset 0)
+        (atomlist nil))
+    (loop
+      :for kind-cons :in (cstruct-atoms structure)
+      :do (block derive-atomlist
+            (push (cons (car kind-cons)
+                        (subseq gen-coords offset
+                                (+ offset (length (cdr kind-cons)))))
+                  atomlist)
+            (setf offset (+ offset (length (cdr kind-cons))))))
+    (reverse atomlist)))
+
+
+(defun qe-atom-vel-list (vs)
+  (let ((res ""))
+    (dolist (l (derive-atomlist init-structure vs) res)
+      (setf res
+            (format nil "~a~&~a" res
+                    (format nil"~{~&~{~4a ~,12f ~,12f ~,12f~}~}"
+                            (map 'list (lambda (vec) (list
+                                                      (string-capitalize
+                                                       (symbol-name (car l)))
+                                                      (aref vec 0)
+                                                      (aref vec 1)
+                                                      (aref vec 2)))
+                                 (cdr l))))))))
 
 ;; Concurrency mechanism definitions.
 ;; In this workflow, a number of workers - 2 by default -  are subscribed
@@ -387,6 +463,61 @@ SolutionMethod       diagon
                       (append siesta-result-buffer res))))))
 
 ;; Calculation factories' definition:
+
+(defun qe-task (packed-xvs)
+  "A task to be submitted for QE background worker.
+   Provided with atom coordinates and velocities for a MD snapshot, it
+   1. Creates QE calculation instance,
+   2. Runs the calculation,
+   3. Pushes the run calculation to the `qe-calc-lst` session list,
+   4. Returns log message.
+   Task definition is also a good place to register data,
+   e.g. save calculation state to a database."
+  (let ((qe-calc
+          (mk-calculation (qe-plist packed-xvs)
+            ;; Create run-dir:
+            (aproc (format nil "mkdir -p ~a" (get-param :qe-run-dir))
+              (uiop:wait-process proc))
+            ;; Populate input file:
+            (aproc (format nil "echo \"~a\" > ~a/input"
+                           (-<> (get-param :template-qe)
+                                (plist-to-template (all-params) <>)
+                                (cstruct-to-template <> (get-param :structure) :qe)
+                                (plist-to-template
+                                 (list :atom-vel-list (qe-atom-vel-list (get-param :vs))) <>))
+                           (get-param :qe-run-dir))
+              (uiop:wait-process proc))
+            ;; Run the QE `all_currents.x` calculation
+            (aproc (format nil "cd ~a && ~a -in input > output"
+                           (get-param :qe-run-dir)
+                           (get-param :qe-command))
+              (uiop:wait-process proc))
+            ;; Register results
+            (aproc (format nil "cd ~a && cat current_hz" (get-param :qe-run-dir))
+              (let ((stream (uiop:process-info-output proc)))
+                (set-param :output
+                           (loop
+                             for line = (read-line stream nil)
+                             while line collect line)))
+
+              (if (not (= 0 (uiop:wait-process proc)))
+                  (block error-report
+                    (let ((stream (uiop:process-info-output proc)))
+                      (set-param :error-output
+                                 (loop
+                                   for line = (read-line stream nil)
+                                   while line collect line)))
+                    (set-status "failed")))))))
+
+    ;; (funcall qe-calc :run)      ; Run the calculation.
+    ;; (push qe-calc qe-calc-lst)  ; Push the instance we have just run to the session list
+    ;; (bcast-qe qe-calc)          ; Send data to interactive plot
+                                        ;(append-qe-result qe-calc)  ; Append formatted resuts from `current_hz` to the
+                                        ; corresponding result container in `results-lst` session
+    (format nil "Quantum Espresso VMD finished step ~d" ; Log message
+            (funcall qe-calc :get :step))
+    qe-calc))
+
 
 (defun bind-siesta-calc ()
   (setf
