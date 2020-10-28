@@ -328,10 +328,7 @@ SolutionMethod       diagon
     (if step
         (let ((packed (check-xvs-buffers max-xvs-buffer-len step)))
           (if packed (progn             ;FIXME
-                       ;; (submit-task qe-channel (lambda () (format t "QE task submitted~%")))
-                       ;; (submit-task qe-channel #'qe-task packed)
-                       (print packed)
-
+                       (submit-task qe-channel #'qe-task packed)
                        (reset-xvs-buffers)
                        (format t "QE task submitted for MD step ~d~%" step)))
           step))))
@@ -408,6 +405,10 @@ SolutionMethod       diagon
                                           (funcall qe-calc :get :step)))
                          results-lst :from-end t)))
     (setf result (append result (qe-calc-result qe-calc)))))
+
+
+(defun merge-results ()
+  (loop for c in qe-calc-lst collect (append-qe-result c)))
 
 
 (defparameter results-lst nil)
@@ -509,14 +510,14 @@ SolutionMethod       diagon
                                    while line collect line)))
                     (set-status "failed")))))))
 
-    ;; (funcall qe-calc :run)      ; Run the calculation.
-    ;; (push qe-calc qe-calc-lst)  ; Push the instance we have just run to the session list
-    ;; (bcast-qe qe-calc)          ; Send data to interactive plot
-                                        ;(append-qe-result qe-calc)  ; Append formatted resuts from `current_hz` to the
-                                        ; corresponding result container in `results-lst` session
+    (funcall qe-calc :run)      ; Run the calculation.
+    (push qe-calc qe-calc-lst)  ; Push the instance we have just run to the session list
+    ;; FIXME: CALLBACK
+    ;;       (bcast-qe qe-calc)          ; Send data to interactive plot
+    ;;       (append-qe-result qe-calc)  ; Append formatted resuts from `current_hz` to the
+    ;;       corresponding result container in `results-lst` session
     (format nil "Quantum Espresso VMD finished step ~d" ; Log message
-            (funcall qe-calc :get :step))
-    qe-calc))
+            (funcall qe-calc :get :step))))
 
 
 (defun bind-siesta-calc ()
@@ -567,3 +568,39 @@ SolutionMethod       diagon
                             for line = (read-line stream nil)
                             while line collect line)))
              (set-status "failed")))))))
+
+
+(defun run-main ()
+  (init-kernel)
+
+  (defparameter qe-channel (make-channel)
+    "The channel for QE tasks. They will be served in background by our
+  2 background worker threads. If a calculation is submitted when all
+  workers are busy, it will wait its turn; in this sense channels behave like queues.")
+
+  (defparameter qe-logger
+    (bt:make-thread
+     (lambda ()
+       (loop
+         do (let ((res (try-receive-result qe-channel :timeout 0.200)))
+              (if res (format *standard-output* "~a~%" res))))))
+    "And an extra thread for a logging process. It will tell our main program that
+    QE calculation is finished.")
+
+  (bind-siesta-calc)
+  (siesta-calc :run))
+
+
+(defun reset-main ()
+  (aproc (format nil "rm -r ~a" run-dir-base)
+    (uiop:wait-process proc))
+  (setf siesta-result-buffer nil)
+  (setf results-lst nil)
+  (setf qe-calc-lst nil)
+  (reset-xvs-buffers)
+  (bt:destroy-thread qe-logger)
+  (shutdown-kernel))
+
+
+(defun run ()
+  (bt:make-thread #'run-main))
