@@ -313,7 +313,7 @@ SolutionMethod       diagon
   (let ((step (parse-xvs-line line)))
     (if step
         (let ((packed (check-xvs-buffers max-xvs-buffer-len step)))
-          (if packed (progn             ;FIXME
+          (if packed (progn
                        (submit-task qe-channel #'qe-task packed)
                        (reset-xvs-buffers)
                        (format t "QE task submitted for MD step ~d~%" step)))
@@ -431,15 +431,27 @@ SolutionMethod       diagon
             vec))))
 
 
+;; Live result callbacks:
+(defun siesta-result-callback (siesta-result-buffer)
+  "This callback is called after each SIESTA-RESULT-BUFFER is registered."
+  siesta-result-buffer)
+
+
+(defun qe-calc-callback (qe-calc)
+  "This callback is called after each satellite QE-CALC is processed and registered."
+  qe-calc)
+
+
 (defun scan-result-siesta (line)
   (if (parse-siesta-vmd-stop line)
-      (progn                            ;FIXME: block, insert callback
+      (progn
         (format t "Registering SIESTA result for step ~a~%"
                 (getf siesta-result-buffer :step))
         (push (copy-list siesta-result-buffer) results-lst)
 
-        ;; send result for plotting:
-        ;; (bcast-siesta siesta-result-buffer)
+        ;;NOTE: redefine this callback in configuration script
+        ;;      for runtime results analysis:
+        (siesta-result-callback siesta-result-buffer)
 
         ;; reset buffer:
         (setf siesta-result-buffer nil))
@@ -498,10 +510,9 @@ SolutionMethod       diagon
 
     (funcall qe-calc :run)      ; Run the calculation.
     (push qe-calc qe-calc-lst)  ; Push the instance we have just run to the session list
-    ;; FIXME: CALLBACK
-    ;;       (bcast-qe qe-calc)          ; Send data to interactive plot
-    ;;       (append-qe-result qe-calc)  ; Append formatted resuts from `current_hz` to the
-    ;;       corresponding result container in `results-lst` session
+    ;;NOTE: redefine this callback in configuration script
+    ;;      for runtime results analysis:
+    (qe-calc-callback qe-calc)
     (format nil "Quantum Espresso VMD finished step ~d" ; Log message
             (funcall qe-calc :get :step))))
 
@@ -540,7 +551,6 @@ SolutionMethod       diagon
                     (loop
                       for line = (read-line stream nil)
                       while line
-                                        ;do (print line)
                       do (or
                           (scan-xvs-line
                            (number-of-atoms (get-param :init-structure)) line)
