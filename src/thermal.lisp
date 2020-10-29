@@ -1,11 +1,3 @@
-(ql:quickload :alexandria)              ; Poppular utils library
-(ql:quickload :lparallel)               ; Parallel API  (calculation dispatcher-workers)
-(ql:quickload :bt-semaphore)            ; Threading API (results collecting, logging)
-(ql:quickload :cl-ppcre)                ; Powerful Regex-processing mechanism
-(ql:quickload :cl-arrows)               ; Syntactic sugar (`thread macro`)
-(ql:quickload :cl-forja)                ; ASDF system of the Forja project
-(ql:quickload :common-utils)            ; My useful utility-functions
-
 (defpackage forja-factory/thermal
   (:use
    :cl
@@ -24,14 +16,8 @@
   (:import-from :alexandria :make-keyword)
   (:import-from :parse-number :parse-real-number)
   (:export
-   :siesta-prefix
-   :siesta-bin
    :pseudos-dir
-   :run-dir-base
-   #:siesta-command
-   #:siesta-run-dir))
-   ;; #:ps-file-paths
-   ;; #:siesta-direct))
+   :run-dir-base))
 (in-package :forja-factory/thermal)
 
 
@@ -602,5 +588,9 @@ SolutionMethod       diagon
   (shutdown-kernel))
 
 
-(defun run ()
-  (bt:make-thread #'run-main))
+(defvar workflow-thread nil
+  "Main thread of the Thermal Transport workflow")
+
+
+(defun run-main-thread ()
+  (setf workflow-thread (bt:make-thread #'run-main :name "workflow-thread")))
