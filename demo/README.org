@@ -44,9 +44,9 @@ To build the app executable, do in the shell:
 
 ** ~config.lisp~ Configuration file
 
-The app we produced reads a ~config.lisp~ from the same folder it is placed in.
+The app just produced reads a ~config.lisp~ from the same folder it is placed in.
 
-Remember that we omit some crucial defaults for the workflow. The ~config.lisp~ is a place to
+Remember that some crucial defaults were omitted for the workflow. The ~config.lisp~ is a place to
 concretize them. For our sample inputs the minimal one would look like:
 
 #+begin_src lisp :results none :tangle config.lisp
@@ -56,7 +56,7 @@ concretize them. For our sample inputs the minimal one would look like:
 
   (setf init-pseudos-list '("Si.psf")) ; specify pseudos file
 
-  (setf alat-list '(5.35 5.37 5.39 5.41 5.43 5.45 5.47 5.49)) ; define the latttice constants range
+  (setf alat-list '(5.35 5.37 5.39 5.41 5.43 5.45 5.47 5.49)) ; define the lattice constants range
 
   ;; Concretize other defaults if required, e.g.:
   ;; (setf run-dir-base "/tmp/run")
@@ -79,18 +79,19 @@ With all parameters set, launch the app:
 It will show the output of all the calculations being run, and the results for EOS in the end
 will be accumulated in ~output~:
 
-#+begin_src shell
+#+begin_src shell :results raw
   cat output
 #+end_src
 
-#+RESULTS:
-| 5.35 | -215.457938d0 |
-| 5.37 | -215.466804d0 |
-| 5.39 | -215.471934d0 |
-| 5.41 | -215.473713d0 |
-| 5.43 | -215.472517d0 |
-| 5.45 | -215.468831d0 |
-| 5.47 | -215.462436d0 |
-| 5.49 | -215.453127d0 |
+#+begin_quote
+5.35   -215.457938d0
+5.37   -215.466804d0
+5.39   -215.471934d0
+5.41   -215.473713d0
+5.43   -215.472517d0
+5.45   -215.468831d0
+5.47   -215.462436d0
+5.49   -215.453127d0
+#+end_quote
 
 The app can be reused with other fdf, pseudos and list of lattice constants.

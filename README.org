@@ -29,10 +29,10 @@ Other dependencies should be automatically discovered in the Quicklisp's default
 ** Usage
 
 There is a demonstration of Forja-powered workflow application creation cycle in ~/demo/~.
-Read ~/demo/demo.org~.
+Read ~/demo/README.org~.
 
 For workflows ready to be used, like =thermal= transport workflow, the executables are built
-in a way similar to what is demontrated, by running
+in a way similar to what is demonstrated, by running
 #+begin_src shell :results none
   sbcl --load build.lisp
 #+end_src
