@@ -1,9 +1,32 @@
 * Forja-Factory
 Some factory functions for CL-Forja calculations.
 
-** Usage
-
 ** Installation
+
+*** =SBCL=
+At the moment I use =SBCL= Common Lisp implementation's specific features in
+application build scripts. So I assume that you'll be using =SBCL= too.
+
+When build definitions are made portable it however won't guarantee the portability of
+/all/ the workflow packages defined here. And although the implementation of core
+=:cl-forja= package is made portable among the implementations, =SBCL= will be
+the preferred CL to work with =:forja-factories=.
+
+The versions of =SBCL= tested are ~1.5+~
+
+Keep in mind that complex workflows assume [[https://lispcookbook.github.io/cl-cookbook/process.html#checking-for-thread-support-in-common-lisp][thread support]].
+
+*** [[https://www.quicklisp.org/beta/][Quicklisp]]
+An obvious pacage manager for dependencies.
+
+Make sure to clone the following repos in your ~~/quicklisp/local-projects/~ after installation:
+
+ * https://github.com/vdikan/cl-forja
+ * https://github.com/vdikan/common-utils
+
+Other dependencies should be automatically discovered in the Quicklisp's default dist.
+
+** Usage
 
 ** Author
 
