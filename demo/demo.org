@@ -1,0 +1,96 @@
+* Workflow Factory and App demonstration
+
+In this demo I'm gonna define a workflow package (namespace) and build
+an application out of it for simple EOS workflow, Forja-style.
+
+It will literally replicate one of [[https://personales.unican.es/junqueraj/JavierJunquera_files/Metodos/Structuralproperties/Structural.html][Javier Junquera's examples]].
+
+** ~eos.lisp~ : EOS demo factory definition
+
+The =:forja-factory/siesta= package already contains a factory for single local
+SIESTA calculation. I'll be reusing it for the linear EOS workflow.
+
+The ~eos.lisp~ extends that package with extra defaults (apparently, if some of them
+not specified, that will end to erroneous execution of SIESTA), together with parser
+definition for total energy and ~run-main~ function that sequentially launches a
+calculation for every value in the ~alat-list~, gets the total energy value from the
+output and registers ~alat - toten~ pair in ~results~ list. Once all calculations
+end, the ~results~ are written in the ~./output~ file.
+
+So this rather short definition performs just as the original example does.
+That program can serve as a small script for fast EOS calculation where all the data is provided.
+
+Of course as things become more complicated, more entities would pop out if the template and
+into the program logic, replaced by substitute tags, e.g. whole structure definitions and other
+parameters. I think that's a right approach: to refine the concrete workflow implementation after
+first following along a manual execution of the actions involved, not engineering top-to-bottom.
+
+Also heavier examples with developed concurrency pattern is where Forja really shines in comparison
+to scripting language systems, with respect to: development speed, control and reliability.
+
+** ~build.lisp~ : Application builder
+
+This defines an app builder program. It loads the workflow definitions from ~eos.lisp~
+and then defines a toplevel function for the application ~run-main-app~ (the one that'll run
+upon application execution).
+
+Note that here extra functionality can be introduced, e.g. not related directly to a workflow
+logic. Like cleanup of the working directories after the workflow is ended.
+
+To build the app executable, do in the shell:
+#+begin_src shell :results none
+  sbcl --load build.lisp
+#+end_src
+
+** ~config.lisp~ Configuration file
+
+The app we produced reads a ~config.lisp~ from the same folder it is placed in.
+
+Remember that we omit some crucial defaults for the workflow. The ~config.lisp~ is a place to
+concretize them. For our sample inputs the minimal one would look like:
+
+#+begin_src lisp :results none :tangle config.lisp
+  (in-package :forja-factory/siesta)  ; need to select proper namespace/package
+
+  (setf init-template (uiop:read-file-string "Si.fdf")) ; read a template fdf-file
+
+  (setf init-pseudos-list '("Si.psf")) ; specify pseudos file
+
+  (setf alat-list '(5.35 5.37 5.39 5.41 5.43 5.45 5.47 5.49)) ; define the latttice constants range
+
+  ;; Concretize other defaults if required, e.g.:
+  ;; (setf run-dir-base "/tmp/run")
+  ;; (setf siesta-bin  "~/bin/siesta")
+  ;; (setf siesta-prefix nil)
+  ;; ...
+#+end_src
+
+Other variable values that the workflow relies on can be concretized in the same manner here.
+And not only them. Actually all the definitions, including functions, can be redefined here.
+Or overloaded from other .lisp files in a "plugin style", until they make their way into the core packages.
+
+** Run
+
+With all parameters set, launch the app:
+#+begin_src shell :results none
+  ./forja-demo.app
+#+end_src
+
+It will show the output of all the calculations being run, and the results for EOS in the end
+will be accumulated in ~output~:
+
+#+begin_src shell
+  cat output
+#+end_src
+
+#+RESULTS:
+| 5.35 | -215.457938d0 |
+| 5.37 | -215.466804d0 |
+| 5.39 | -215.471934d0 |
+| 5.41 | -215.473713d0 |
+| 5.43 | -215.472517d0 |
+| 5.45 | -215.468831d0 |
+| 5.47 | -215.462436d0 |
+| 5.49 | -215.453127d0 |
+
+The app can be reused with other fdf, pseudos and list of lattice constants.
