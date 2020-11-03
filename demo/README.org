@@ -79,19 +79,17 @@ With all parameters set, launch the app:
 It will show the output of all the calculations being run, and the results for EOS in the end
 will be accumulated in ~output~:
 
-#+begin_src shell :results raw
+#+begin_src shell
   cat output
 #+end_src
 
-#+begin_quote
-5.35   -215.457938d0
-5.37   -215.466804d0
-5.39   -215.471934d0
-5.41   -215.473713d0
-5.43   -215.472517d0
-5.45   -215.468831d0
-5.47   -215.462436d0
-5.49   -215.453127d0
-#+end_quote
+| 5.35 | -215.457938d0 |
+| 5.37 | -215.466804d0 |
+| 5.39 | -215.471934d0 |
+| 5.41 | -215.473713d0 |
+| 5.43 | -215.472517d0 |
+| 5.45 | -215.468831d0 |
+| 5.47 | -215.462436d0 |
+| 5.49 | -215.453127d0 |
 
 The app can be reused with other fdf, pseudos and list of lattice constants.
