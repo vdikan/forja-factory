@@ -6,14 +6,17 @@
 
 
 (defun run-main-app ()
+  (format t "Starting Thermal-Transport Workflow...~%")
   (load #P"config.lisp")
+  (format t "Configuration file loaded~%")
   (run-main)
-  (with-open-file (out "output.lisp"
+  (let ((*print-right-margin* 24))
+   (with-open-file (out "output.lisp"
                        :direction :output
                        :if-exists :supersede)
-    (print (merge-results) out))
+    (pprint-fill out (merge-results))))
   (if reset-main-after-run (reset-main))
-  (print "Thermal-Transport Workflow finished!"))
+  (format t "Thermal-Transport Workflow finished!~%"))
 
 
 (sb-ext:save-lisp-and-die #P"forja-thermal.app"
