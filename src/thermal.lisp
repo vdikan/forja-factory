@@ -20,6 +20,11 @@
    :run-dir-base))
 (in-package :forja-factory/thermal)
 
+(defvar last-calculation-finished nil)
+
+(defvar main-thread-timeout 21600) ; 6 hours default timeout
+
+(defvar num-qe-threads 2) ; number of threads for `qe-channel`. 2 by default
 
 (defvar system-label "vmd")
 
@@ -355,7 +360,7 @@ SolutionMethod       diagon
 ;; and dispatch spin-off QE calculations (MD snapshots).
 
 (defun init-kernel ()
-  (setf *kernel* (make-kernel 2 :name "qe-channel-kernel")))
+  (setf *kernel* (make-kernel num-qe-threads :name "qe-channel-kernel")))
 
 
 (defun shutdown-kernel () (end-kernel :wait t))
@@ -473,48 +478,51 @@ SolutionMethod       diagon
    Task definition is also a good place to register data,
    e.g. save calculation state to a database."
   (let ((qe-calc
-          (mk-calculation (qe-plist packed-xvs)
-            ;; Create run-dir:
-            (aproc (format nil "mkdir -p ~a" (get-param :qe-run-dir))
-              (uiop:wait-process proc))
-            ;; Populate input file:
-            (aproc (format nil "echo \"~a\" > ~a/input"
-                           (-<> (get-param :template-qe)
-                                (plist-to-template (all-params) <>)
-                                (cstruct-to-template <> (get-param :structure) :qe)
-                                (plist-to-template
-                                 (list :atom-vel-list (qe-atom-vel-list (get-param :vs))) <>))
-                           (get-param :qe-run-dir))
-              (uiop:wait-process proc))
-            ;; Run the QE `all_currents.x` calculation
-            (aproc (format nil "cd ~a && ~a -in input > output"
-                           (get-param :qe-run-dir)
-                           (get-param :qe-command))
-              (uiop:wait-process proc))
-            ;; Register results
-            (aproc (format nil "cd ~a && cat current_hz" (get-param :qe-run-dir))
-              (let ((stream (uiop:process-info-output proc)))
-                (set-param :output
-                           (loop
-                             for line = (read-line stream nil)
-                             while line collect line)))
+          (mk-calculation
+           (qe-plist packed-xvs)
+           ;; Create run-dir:
+           (aproc (format nil "mkdir -p ~a" (get-param :qe-run-dir))
+                  (uiop:wait-process proc))
+           ;; Populate input file:
+           (aproc (format nil "echo \"~a\" > ~a/input"
+                          (-<> (get-param :template-qe)
+                               (plist-to-template (all-params) <>)
+                               (cstruct-to-template <> (get-param :structure) :qe)
+                               (plist-to-template
+                                (list :atom-vel-list (qe-atom-vel-list (get-param :vs))) <>))
+                          (get-param :qe-run-dir))
+                  (uiop:wait-process proc))
+           ;; Run the QE `all_currents.x` calculation
+           (aproc (format nil "cd ~a && ~a -in input > output"
+                          (get-param :qe-run-dir)
+                          (get-param :qe-command))
+                  (uiop:wait-process proc))
+           ;; Register results
+           (aproc (format nil "cd ~a && cat current_hz" (get-param :qe-run-dir))
+                  (let ((stream (uiop:process-info-output proc)))
+                    (set-param :output
+                               (loop
+                                 for line = (read-line stream nil)
+                                 while line collect line)))
 
-              (if (not (= 0 (uiop:wait-process proc)))
-                  (block error-report
-                    (let ((stream (uiop:process-info-output proc)))
-                      (set-param :error-output
-                                 (loop
-                                   for line = (read-line stream nil)
-                                   while line collect line)))
-                    (set-status "failed")))))))
+                  (if (not (= 0 (uiop:wait-process proc)))
+                      (block error-report
+                        (let ((stream (uiop:process-info-output proc)))
+                          (set-param :error-output
+                                     (loop
+                                       for line = (read-line stream nil)
+                                       while line collect line)))
+                        (set-status "failed")))))))
 
     (funcall qe-calc :run)      ; Run the calculation.
     (push qe-calc qe-calc-lst)  ; Push the instance we have just run to the session list
     ;;NOTE: redefine this callback in configuration script
     ;;      for runtime results analysis:
     (qe-calc-callback qe-calc)
-    (format nil "Quantum Espresso VMD finished step ~d" ; Log message
-            (funcall qe-calc :get :step))))
+    (format t "Quantum Espresso VMD finished step ~d~%" ; Log message
+            (funcall qe-calc :get :step))
+    (if (= nsteps (funcall qe-calc :get :step)) ; Signal main thread to quit. SBCL-specific.
+        (setf last-calculation-finished t))))
 
 
 (defun bind-siesta-calc ()
@@ -584,7 +592,9 @@ SolutionMethod       diagon
     QE calculation is finished.")
 
   (bind-siesta-calc)
-  (siesta-calc :run))
+  (siesta-calc :run)
+  (sb-ext:wait-for last-calculation-finished   ; wait for QE satellites after main Siesta run
+            :timeout main-thread-timeout)) ; SBCL specific
 
 
 (defun reset-main ()
