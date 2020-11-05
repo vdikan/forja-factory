@@ -19,7 +19,7 @@ Keep in mind that complex workflows assume [[https://lispcookbook.github.io/cl-c
 *** [[https://www.quicklisp.org/beta/][Quicklisp]]
 An obvious pacage manager for dependencies.
 
-Make sure to clone the following repos in your ~~/quicklisp/local-projects/~ after installation:
+Make sure to clone the following repos in your =~/quicklisp/local-projects/= after installation:
 
  * https://github.com/vdikan/cl-forja
  * https://github.com/vdikan/common-utils
