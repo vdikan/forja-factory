@@ -66,15 +66,77 @@
 (defvar md-virtual-jzero "T"
   "Request calculation of the `zero` thermal flux component")
 
-(defvar md-length-dt 1.0
-  "Length of the `BASE` MD-step in femtoseconds.")
-
-(defvar md-length-virtual-dt 0.1
-  "Length of the `VIRTUAL` MD-step in femtoseconds.
-Default is 10 times smaller than the `BASE`.")
-
 (defvar md-init-temperature 1000
   "Initial electronic temperature, K.")
+
+(defvar siesta-prefix nil)
+
+(defvar siesta-bin "~/bin/siesta")
+
+
+(defun siesta-command ()
+  (if siesta-prefix
+      (format nil "~a && ~a" siesta-prefix siesta-bin)
+      siesta-bin))
+
+
+(defun siesta-run-dir ()
+  (format nil "~a/siesta" run-dir-base))
+
+
+(defun ps-file-paths (base cs)
+  (loop
+    for kind in (cstruct-kinds cs)
+    collect (format nil "~a/~a" base (chem-kind-siesta-pseudo (cdr kind)))))
+
+
+(defvar siesta-extras-plist nil)
+
+
+;;; Time Conversion
+;;  When passing dt intervals, time units must be taken into account.
+;;  Siesta: fs; QE: a.u. Default are femtoseconds for siesta.
+;;  Functions that construnct parameters lists for calculations should
+;;  call a corresponding function.
+(defun time-units-p (thing)
+  (member thing '(fs tRyd) :test #'string-equal))
+
+(deftype time-units-type ()
+  `(satisfies time-units-p))
+
+(defstruct time-dt
+  (value 0.0 :type real)
+  (units 'fs :type time-units-type))
+
+(declaim (ftype (function (float) float) fs->tryd))
+(defun fs->tryd (time)
+  (* 20.6706851794 time))
+
+(declaim (ftype (function (float) float) tryd->fs))
+(defun tryd->fs (time)
+  (* 0.0483776900146 time))
+
+(declaim (ftype (function (time-dt) float) time-siesta))
+(defun time-siesta (time-dt)
+  (ccase (time-dt-units time-dt)
+    (fs (time-dt-value time-dt))
+    (tRyd (tryd->fs (time-dt-value time-dt)))))
+
+(declaim (ftype (function (time-dt) float) time-qe))
+(defun time-qe (time-dt)
+  (ccase (time-dt-units time-dt)
+    (tRyd (time-dt-value time-dt))
+    (fs (fs->tryd (time-dt-value time-dt)))))
+
+
+;; Definitions of time intervals
+(defvar md-length-dt (make-time-dt :value 1.00)
+  "Length of the `BASE` MD-step. Default units: 'fs")
+
+(defvar md-length-virtual-dt (make-time-dt :value 0.10)
+  "Length of the `VIRTUAL` MD-step. Default units: 'fs.
+Reasonable value is ~10 times smaller than the `BASE`.")
+
 
 (defparameter template-fdf "# Siesta VMD calculation template file
 
@@ -129,33 +191,14 @@ MeshCutoff	##:densitycutoff:## Ry
   50  50  50
 %endblock MeshSizes
 
+%block Grid.CellSampling
+  0.5 0.5 0.5
+%endblock Grid.CellSampling
+
 DM.MixingWeight      0.3
 DM.Tolerance         1.d-5
 SolutionMethod       diagon
 ")
-
-(defvar siesta-prefix nil)
-
-(defvar siesta-bin "~/bin/siesta")
-
-
-(defun siesta-command ()
-  (if siesta-prefix
-      (format nil "~a && ~a" siesta-prefix siesta-bin)
-      siesta-bin))
-
-
-(defun siesta-run-dir ()
-  (format nil "~a/siesta" run-dir-base))
-
-
-(defun ps-file-paths (base cs)
-  (loop
-    for kind in (cstruct-kinds cs)
-    collect (format nil "~a/~a" base (chem-kind-siesta-pseudo (cdr kind)))))
-
-
-(defvar siesta-extras-plist nil)
 
 
 (defun siesta-plist ()
@@ -174,8 +217,8 @@ SolutionMethod       diagon
          :md-virtual-jks     md-virtual-jks
          :md-virtual-jion    md-virtual-jion
          :md-virtual-jzero   md-virtual-jzero
-         :md-length-dt       md-length-dt
-         :md-length-virtual-dt md-length-virtual-dt
+         :md-length-dt       (time-siesta md-length-dt)
+         :md-length-virtual-dt (time-siesta md-length-virtual-dt)
          :md-init-temperature  md-init-temperature
          :template-fdf template-fdf)
    siesta-extras-plist))
@@ -208,6 +251,7 @@ SolutionMethod       diagon
  &ELECTRONS
     conv_thr = 1.D-8,
     mixing_beta = 0.7,
+    electron_maxstep = 250,
  /
  &IONS
     ion_velocities = 'from_input',
@@ -254,8 +298,8 @@ SolutionMethod       diagon
                                                            (getf packed-xvs :x1))
                                    :kinds (cstruct-kinds init-structure)
                                    :lattice (cstruct-lattice init-structure))
-         :md-length-dt   md-length-dt
-         :md-length-virtual-dt md-length-virtual-dt
+         :md-length-dt   (time-qe md-length-dt)
+         :md-length-virtual-dt (time-qe md-length-virtual-dt)
          :md-init-temperature  md-init-temperature
          :template-qe template-qe )
    qe-extras-plist))
