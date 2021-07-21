@@ -20,6 +20,9 @@
    :run-dir-base))
 (in-package :forja-factory/thermal)
 
+(defvar siesta-to-qe-units-coeff 0.04837769
+  "Siesta-to-QuantumEspresso energy flux units conversion coefficient.")
+
 (defvar last-calculation-finished nil)
 
 (defvar main-thread-timeout 21600) ; 6 hours default timeout
@@ -467,7 +470,9 @@ SolutionMethod       diagon
   (register-groups-bind (flux-comp (#'parse-double f1) (#'parse-double f2) (#'parse-double f3))
       ("\\[(J[\\w]+)\\]\\s*([E\\+\\-\\.\\d]+)\\s+([E\\+\\-\\.\\d]+)\\s+([E\\+\\-\\.\\d]+)"
        line :sharedp t)
-    (let ((vec (vector f1 f2 f3))) (list (make-keyword (string-upcase flux-comp)) vec))))
+    (let ((vec (vector f1 f2 f3)))
+      (list (make-keyword (string-upcase flux-comp))
+            (map 'vector (lambda (x) (* siesta-to-qe-units-coeff x)) vec)))))
 
 
 (defun parse-siesta-ion (line)
@@ -477,7 +482,7 @@ SolutionMethod       diagon
     (let ((vec (vector f1 f2 f3)))
       (list (make-keyword (string-upcase
                            (format nil "JION-~a" ion-flux-comp)))
-            vec))))
+            (map 'vector (lambda (x) (* siesta-to-qe-units-coeff x)) vec)))))
 
 
 ;; Live result callbacks:
