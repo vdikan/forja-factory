@@ -6,7 +6,8 @@
                "bt-semaphore"
                "cl-arrows"
                "cl-forja"
-               "common-utils")
+               "common-utils"
+               "jonathan")
   :components ((:module "src"
                 :components
                 ((:file "siesta")

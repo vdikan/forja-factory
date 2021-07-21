@@ -34,10 +34,8 @@
 
              transform
              (array
-              (create :calculate ,(format nil "datum['~a']" siesta-flux) :as "in_siesta")
+              (create :calculate ,(format nil "datum['~a']" siesta-flux) :as "flux_siesta") ;relabel siesta flux
               (create :calculate ,(format nil "datum['~a']" qe-flux) :as "flux_qe") ;relabel qe flux
-              (create :calculate "[datum.in_siesta[0]*0.04837769, datum.in_siesta[1]*0.04837769, datum.in_siesta[2]*0.04837769]",
-                      :as "flux_siesta") ;FIXME: do rescaling in the output
               (create :calculate "['Siesta-X', 'Siesta-Y', 'Siesta-Z']" :as "comp_siesta") ;labeling components
               (create :calculate "['QE-X', 'QE-Y', 'QE-Z']" :as "comp_qe") ;labeling components
               (create :flatten (array "comp_siesta" "flux_siesta"))

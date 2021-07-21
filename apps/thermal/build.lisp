@@ -6,6 +6,7 @@
 
 
 (defun results-edn (results)
+  "Poor man's EDN output."
   (with-open-file (out "output.edn"
                        :direction :output
                        :if-exists :supersede)
@@ -26,15 +27,23 @@
     (format out "]")))
 
 
+(defun results-json (results)
+  (with-open-file (out "flux.json" :direction :output :if-exists :supersede)
+    (format out "[~%~{~A~^,~%~}~%]"
+            (mapcar (lambda (r) (jonathan:to-json r :from :plist)) results))))
+
+
 (defun finalize ()
   (let* ((*print-right-margin* 24)
-         (results (merge-results)))
-    (with-open-file (out "output.lisp"
-                         :direction :output
-                         :if-exists :supersede)
-      (pprint-fill out results))
-    (results-edn results))
-  (if reset-main-after-run (reset-main)))
+         (results (nreverse (merge-results))))
+    ;; Results in JSON:
+    (results-json results)
+    ;; Poor man's EDN:
+    ;; (results-edn results)
+    ;; Results as LISP readable Obj:
+    (with-open-file (out "flux.lisp" :direction :output :if-exists :supersede)
+      (pprint-fill out results)))
+  (when reset-main-after-run (reset-main)))
 
 
 (defun run-main-app ()
