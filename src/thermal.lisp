@@ -577,50 +577,62 @@ SolutionMethod       diagon
 (defun bind-siesta-calc ()
   (setf
    (symbol-function 'siesta-calc)
-   (mk-calculation (siesta-plist)   ; wrap around parameters list for siesta
-     ;; Create run-dir for siesta calc:
-     (aproc (format nil "mkdir -p ~a" (get-param :siesta-run-dir))
-       (uiop:wait-process proc))
-     ;; Copy pseudos to run-dir:
-     (loop
-       :for ps-file :in  (ps-file-paths (get-param :pseudos-dir)
-                                        (get-param :init-structure))
-       :do (aproc
-               (format nil "cp ~a ~a/"
-                       ps-file (get-param :siesta-run-dir))
-             (uiop:wait-process proc)))
-     ;; Populate .fdf-template file:
-     (aproc (format nil "echo \"~a\" > ~a/~a.fdf"
-                    (-<> (get-param :template-fdf)
-                         (plist-to-template (all-params) <>)
-                         (cstruct-to-template <> (get-param :init-structure) :siesta))
-                    (get-param :siesta-run-dir)
-                    (get-param :system-label))
-       (uiop:wait-process proc))
-     ;; Run the calculation:
-     (aproc (format nil "cd ~a && ~a < ~a.fdf | tee ~a.out"
-                    (get-param :siesta-run-dir)
-                    (get-param :siesta-command)
-                    (get-param :system-label)
-                    (get-param :system-label))
-       (let ((stream (uiop:process-info-output proc)))
-         (set-param :output
-                    (loop
-                      for line = (read-line stream nil)
-                      while line
-                      do (or
-                          (scan-xvs-line
-                           (number-of-atoms (get-param :init-structure)) line)
-                          (scan-result-siesta line))
-                      collect line)))   ;FIXME
-       (if (not (= 0 (uiop:wait-process proc)))
-           (block error-report
-             (let ((stream (uiop:process-info-output proc)))
-               (set-param :error-output
-                          (loop
-                            for line = (read-line stream nil)
-                            while line collect line)))
-             (set-status "failed")))))))
+   (mk-calculation
+    (siesta-plist)   ; wrap around parameters list for siesta
+    ;; Create run-dir for siesta calc:
+    (aproc (format nil "mkdir -p ~a" (get-param :siesta-run-dir))
+           (uiop:wait-process proc))
+    ;; Copy pseudos to run-dir:
+    (loop
+      :for ps-file :in  (ps-file-paths (get-param :pseudos-dir)
+                                       (get-param :init-structure))
+      :do (aproc
+           (format nil "cp ~a ~a/"
+                   ps-file (get-param :siesta-run-dir))
+           (uiop:wait-process proc)))
+    ;; Populate .fdf-template file:
+    (aproc (format nil "echo \"~a\" > ~a/~a.fdf"
+                   (-<> (get-param :template-fdf)
+                        (plist-to-template (all-params) <>)
+                        (cstruct-to-template <> (get-param :init-structure) :siesta))
+                   (get-param :siesta-run-dir)
+                   (get-param :system-label))
+           (uiop:wait-process proc))
+    ;; Run the calculation:
+    (aproc (format nil "cd ~a && ~a < ~a.fdf | tee ~a.out"
+                   (get-param :siesta-run-dir)
+                   (get-param :siesta-command)
+                   (get-param :system-label)
+                   (get-param :system-label))
+           (let ((stream (uiop:process-info-output proc)))
+             (set-param :output
+                        (loop
+                          for line = (read-line stream nil)
+                          while line
+                          do (or
+                              (scan-xvs-line
+                               (number-of-atoms (get-param :init-structure)) line)
+                              (scan-result-siesta line))
+                          collect line)))   ;FIXME
+           (if (not (= 0 (uiop:wait-process proc)))
+               (block error-report
+                 (let ((stream (uiop:process-info-output proc)))
+                   (set-param :error-output
+                              (loop
+                                for line = (read-line stream nil)
+                                while line collect line)))
+                 (set-status "failed")))))))
+
+
+(declaim (inline output-meta))
+(defun output-meta ()
+  (with-open-file (metaf "meta.json" :direction :output :if-exists :supersede)
+    (format metaf "~a"
+            (jonathan:to-json (list :system-label system-label
+                                    :delta-t (format nil "~a ~a"
+                                                     (time-dt-value md-length-dt)
+                                                     (time-dt-units md-length-dt)))
+                              :from :plist))))
 
 
 (defun run-main ()
@@ -640,10 +652,11 @@ SolutionMethod       diagon
     "And an extra thread for a logging process. It will tell our main program that
     QE calculation is finished.")
 
+  (output-meta)
   (bind-siesta-calc)
   (siesta-calc :run)
   (sb-ext:wait-for last-calculation-finished   ; wait for QE satellites after main Siesta run
-            :timeout main-thread-timeout)) ; SBCL specific
+                   :timeout main-thread-timeout)) ; SBCL specific
 
 
 (defun reset-main ()

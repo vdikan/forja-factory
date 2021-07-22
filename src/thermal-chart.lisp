@@ -4,8 +4,10 @@
 
 (in-package :thermal-chart)
 
+(defvar meta)
 
-(defun thermal-chart-page (system-label siesta-flux qe-flux &optional (width 1300) (height 850))
+
+(defun thermal-chart-page (siesta-flux qe-flux &optional (width 1300) (height 850))
   "Vega-Lite container page for stocks data chart."
   (cl-who:with-html-output-to-string
       (*standard-output* nil :prologue t :indent t)
@@ -26,7 +28,7 @@
              $schema "https://vega.github.io/schema/vega-lite/v5.json"
              description "Vega-Lite Chart for Thermal WF"
              title  (create :text ,(format nil "Thermal Flux comparison for ~a: ~a (squares) and ~a (triangles)"
-                                           system-label siesta-flux qe-flux)
+                                           (getf meta :system-label) siesta-flux qe-flux)
                             "fontSize" 24)
              width  ,width
              height ,height
@@ -50,7 +52,8 @@
                                             :size 60))
                :encoding (create :x (create :field "STEP"
                                             :type "quantitative"
-                                            :title "MD step number (1fs each)"
+                                            :title ,(format nil "MD step number (~a each)"
+                                                            (getf meta :delta-t))
                                             :axis (create "tickCount" 6 "titleFontSize" 18 "labelFontSize" 18))
                                  :y (create :field "flux_siesta"
                                             :type "quantitative"
@@ -73,7 +76,8 @@
                                             :size 80))
                :encoding (create :x (create :field "STEP"
                                             :type "quantitative"
-                                            :title "MD step number (1fs each)")
+                                            :title ,(format nil "MD step number (~a each)"
+                                                            (getf meta :delta-t)))
                                  :y (create :field "flux_qe"
                                             :type "quantitative"
                                             :title "Flux component value (QE units)")
@@ -89,8 +93,8 @@
 
 (setf (ningle:route *app* "/" )
       "Thermal transport comparison wf web plotter.
-Usage: /chart/:system/:siesta/:qe/
-or /chart/:system/:width/:height/:siesta/:qe/")
+Usage: /chart/:siesta/:qe/
+or /chart/:width/:height/:siesta/:qe/")
 
 
 (setf (ningle:route *app* "/data/" )
@@ -102,17 +106,15 @@ or /chart/:system/:width/:height/:siesta/:qe/")
           (uiop:read-file-string "flux.json")))
 
 
-(setf (ningle:route *app* "/chart/:system/:siesta/:qe/")
+(setf (ningle:route *app* "/chart/:siesta/:qe/")
       #'(lambda (params)
-          (thermal-chart-page (cdr (assoc :system params))
-                              (cdr (assoc :siesta params))
+          (thermal-chart-page (cdr (assoc :siesta params))
                               (cdr (assoc :qe params)))))
 
 
-(setf (ningle:route *app* "/chart/:system/:width/:height/:siesta/:qe/")
+(setf (ningle:route *app* "/chart/:width/:height/:siesta/:qe/")
       #'(lambda (params)
-          (thermal-chart-page (cdr (assoc :system params))
-                              (cdr (assoc :siesta params))
+          (thermal-chart-page (cdr (assoc :siesta params))
                               (cdr (assoc :qe params))
                               (cdr (assoc :width params))
                               (cdr (assoc :height params)))))
@@ -121,6 +123,7 @@ or /chart/:system/:width/:height/:siesta/:qe/")
 ;; https://stackoverflow.com/questions/48103501/deploying-common-lisp-web-applications
 (defun app-launch ()
   ;; (start-app :port 9003) ;; our start-app, for example clack:clack-up
+  (setf meta (jonathan:parse (uiop:read-file-string "meta.json")))
   (setf *app-handler* (clack:clackup *app* :port 9000))
   ;; let the webserver run.
   ;; warning: hardcoded "hunchentoot".
