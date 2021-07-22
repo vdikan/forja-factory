@@ -65,6 +65,6 @@
   (format t "Thermal-Transport Workflow finished!~%"))
 
 
-(sb-ext:save-lisp-and-die #P"thermal-workflow"
+(sb-ext:save-lisp-and-die #P"workflow-thermal"
                           :toplevel #'forja-factory/thermal::run-main-app
                           :executable t)

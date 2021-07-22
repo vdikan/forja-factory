@@ -38,6 +38,16 @@ in a way similar to what is demonstrated, by running
 #+end_src
 in a corresponding ~/app/~ subdirectory.
 
+** Known problems
+For the =thermal= workflow, results from SIESTA and QE satellites are collected in memory and
+merged prior to exit. They should be stream-outputted instead, but for this to work either
+results queue or Vega plotter spec should be rewritten (or both).
+
+That also refers to a bug with =last-calculation-finished= that actually says that all
+QE satellites are finished.
+
+Apparently, in this form the WF is not completely thread-safe.
+
 ** Author
 
 + Vladimir Dikan (vdikan@vivaldi.net)

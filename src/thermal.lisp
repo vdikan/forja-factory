@@ -25,6 +25,10 @@
 
 (defvar last-calculation-finished nil)
 
+;; (proclaim '(type fixnum num-calculations-finished))
+;; (defglobal num-calculations-finished 0) ; SBCL-specific global var for lockless operation.
+(defvar num-calculations-finished 0) ; SBCL-specific global var for lockless operation.
+
 (defvar main-thread-timeout 21600) ; 6 hours default timeout
 
 (defvar num-qe-threads 2) ; number of threads for `qe-channel`. 2 by default
@@ -449,6 +453,14 @@ SolutionMethod       diagon
   (loop for c in qe-calc-lst collect (append-qe-result c)))
 
 
+(defun get-single-complete-result (qe-calc)
+  (let ((result (find-if (lambda (res) (= (getf res :step)
+                                          (funcall qe-calc :get :step)))
+                         results-lst :from-end t)))
+    (when result
+      (append result (qe-calc-result qe-calc)))))
+
+
 (defparameter results-lst nil)
 
 (defparameter siesta-result-buffer nil)
@@ -565,12 +577,18 @@ SolutionMethod       diagon
 
     (funcall qe-calc :run)      ; Run the calculation.
     (push qe-calc qe-calc-lst)  ; Push the instance we have just run to the session list
+
+    ;; (let ((res (get-single-complete-result qe-calc)))  ; instead, results buffer queue should be introduced
+    ;;   (when res
+    ;;     (format t "~a" (jonathan:to-json res :from :plist))))
+
     ;;NOTE: redefine this callback in configuration script
     ;;      for runtime results analysis:
     (qe-calc-callback qe-calc)
     (format t "Quantum Espresso VMD finished step ~d~%" ; Log message
             (funcall qe-calc :get :step))
-    (if (= nsteps (funcall qe-calc :get :step)) ; Signal main thread to quit. SBCL-specific.
+    (incf num-calculations-finished)  ; SBCL-specific.
+    (if (= nsteps num-calculations-finished) ; Signal main thread to quit. SBCL-specific.
         (setf last-calculation-finished t))))
 
 
