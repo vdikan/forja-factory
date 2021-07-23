@@ -36,6 +36,11 @@
 (defun finalize ()
   (let* ((*print-right-margin* 24)
          (results (nreverse (merge-results))))
+    ;; Copy out-file:
+    (aproc (format nil "cp ~a/~a.fdf ./" (siesta-run-dir) system-label)
+           (uiop:wait-process proc))
+    (aproc (format nil "cp ~a/~a.out ./" (siesta-run-dir) system-label)
+           (uiop:wait-process proc))
     ;; Results in JSON:
     (results-json results)
     ;; Poor man's EDN:
